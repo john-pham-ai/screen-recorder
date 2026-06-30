@@ -495,31 +495,8 @@ start_recording() {
 prompt_folder_choice() {
     local date_dir="$1"
 
-    # Collect existing subfolders sorted alphabetically
-    local -a folders=()
-    while IFS= read -r -d '' entry; do
-        folders+=("$(basename "$entry")")
-    done < <(find "$date_dir" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
-
     # Inner width of the box — must match the 51 ═ chars in the border lines
     local W=51
-
-    # [1] is always "No subfolder"; folders start at [2]; create is last
-    local nosub_opt=1
-    local create_opt=$(( ${#folders[@]} + 2 ))
-
-    # Truncate name: "  [NN]  <name>  ║" — prefix up to 8 chars + 2 right margin
-    _trunc() {
-        local s="$1" max=$(( W - 10 ))
-        (( ${#s} > max )) && echo "${s:0:$(( max - 1 ))}…" || echo "$s"
-    }
-
-    # Print one numbered row, handling 1- or 2-digit option numbers
-    _row() {
-        local num="$1" text="$2" color="$3"
-        local pad=$(( W - 6 - ${#num} - ${#text} ))
-        printf "  ${BOLD}║${NC}  ${color}[%s]${NC}  %s%*s${BOLD}║${NC}\n" "$num" "$text" "$pad" ""
-    }
 
     local date_label
     date_label=$(basename "$date_dir")
@@ -531,46 +508,40 @@ prompt_folder_choice() {
     echo -e "  ${BOLD}╔═══════════════════════════════════════════════════╗${NC}"
     printf "  ${BOLD}║${NC}%s%*s${BOLD}║${NC}\n" "$header_content" "$header_pad" ""
     echo -e "  ${BOLD}╠═══════════════════════════════════════════════════╣${NC}"
-
-    _row "1" "No subfolder (save to date folder)" "$DIM"
-
-    local i label
-    for i in "${!folders[@]}"; do
-        label=$(_trunc "${folders[$i]}")
-        _row "$((i+2))" "$label" "$GREEN"
-    done
-
-    _row "$create_opt" "Create new subfolder" "$CYAN"
+    printf "  ${BOLD}║${NC}  ${DIM}[1]  No subfolder (save to date folder)%*s${NC}${BOLD}║${NC}\n" $(( W - 41 )) ""
+    printf "  ${BOLD}║${NC}  ${CYAN}[2]${NC}  Create new subfolder%*s${BOLD}║${NC}\n"               $(( W - 27 )) ""
     echo -e "  ${BOLD}╚═══════════════════════════════════════════════════╝${NC}"
     echo ""
     printf "  Choice [1]: "
     read -r choice
     choice="${choice:-1}"
 
-    if [[ "$choice" == "1" ]]; then
-        CHOSEN_DIR="$date_dir"
-    elif [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 2 && choice <= ${#folders[@]} + 1 )); then
-        CHOSEN_DIR="${date_dir}/${folders[$((choice-2))]}"
-    elif [[ "$choice" == "$create_opt" ]]; then
-        echo ""
-        echo -e "  ${CYAN}New subfolder name (leave blank for auto-name):${NC}"
-        printf "  > "
-        read -r folder_name
-        if [[ -z "$folder_name" ]]; then
-            folder_name="session_$((RANDOM % 90000 + 10000))"
-        fi
-        folder_name=$(echo "$folder_name" | sed 's/[^a-zA-Z0-9._-]/_/g')
-        CHOSEN_DIR="${date_dir}/${folder_name}"
-        if [[ -d "$CHOSEN_DIR" ]]; then
-            echo -e "  ${CYAN}↩${NC}  Folder already exists — reusing: $(basename "$CHOSEN_DIR")"
-        else
-            mkdir -p "$CHOSEN_DIR"
-            echo -e "  ${GREEN}✔${NC}  Created: $(basename "$CHOSEN_DIR")"
-        fi
-    else
-        echo -e "  ${YELLOW}Invalid choice — saving to date folder.${NC}"
-        CHOSEN_DIR="$date_dir"
-    fi
+    case "$choice" in
+        1)
+            CHOSEN_DIR="$date_dir"
+            ;;
+        2)
+            echo ""
+            echo -e "  ${CYAN}Subfolder name (leave blank for auto-name):${NC}"
+            printf "  > "
+            read -r folder_name
+            if [[ -z "$folder_name" ]]; then
+                folder_name="session_$((RANDOM % 90000 + 10000))"
+            fi
+            folder_name=$(echo "$folder_name" | sed 's/[^a-zA-Z0-9._-]/_/g')
+            CHOSEN_DIR="${date_dir}/${folder_name}"
+            if [[ -d "$CHOSEN_DIR" ]]; then
+                echo -e "  ${CYAN}↩${NC}  Folder already exists — reusing: $(basename "$CHOSEN_DIR")"
+            else
+                mkdir -p "$CHOSEN_DIR"
+                echo -e "  ${GREEN}✔${NC}  Created: $(basename "$CHOSEN_DIR")"
+            fi
+            ;;
+        *)
+            echo -e "  ${YELLOW}Invalid choice — saving to date folder.${NC}"
+            CHOSEN_DIR="$date_dir"
+            ;;
+    esac
 }
 
 prompt_and_rename() {

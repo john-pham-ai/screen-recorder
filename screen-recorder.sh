@@ -504,9 +504,9 @@ prompt_folder_choice() {
     # Inner width of the box — must match the 51 ═ chars in the border lines
     local W=51
 
-    # Option numbers for the two fixed entries
-    local create_opt=$(( ${#folders[@]} + 1 ))
-    local nosub_opt=$(( ${#folders[@]} + 2 ))
+    # [1] is always "No subfolder"; folders start at [2]; create is last
+    local nosub_opt=1
+    local create_opt=$(( ${#folders[@]} + 2 ))
 
     # Truncate name: "  [NN]  <name>  ║" — prefix up to 8 chars + 2 right margin
     _trunc() {
@@ -532,22 +532,25 @@ prompt_folder_choice() {
     printf "  ${BOLD}║${NC}%s%*s${BOLD}║${NC}\n" "$header_content" "$header_pad" ""
     echo -e "  ${BOLD}╠═══════════════════════════════════════════════════╣${NC}"
 
+    _row "1" "No subfolder (save to date folder)" "$DIM"
+
     local i label
     for i in "${!folders[@]}"; do
         label=$(_trunc "${folders[$i]}")
-        _row "$((i+1))" "$label" "$GREEN"
+        _row "$((i+2))" "$label" "$GREEN"
     done
 
     _row "$create_opt" "Create new subfolder" "$CYAN"
-    _row "$nosub_opt"  "No subfolder (save to date folder)" "$DIM"
     echo -e "  ${BOLD}╚═══════════════════════════════════════════════════╝${NC}"
     echo ""
     printf "  Choice [1]: "
     read -r choice
     choice="${choice:-1}"
 
-    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#folders[@]} )); then
-        CHOSEN_DIR="${date_dir}/${folders[$((choice-1))]}"
+    if [[ "$choice" == "1" ]]; then
+        CHOSEN_DIR="$date_dir"
+    elif [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 2 && choice <= ${#folders[@]} + 1 )); then
+        CHOSEN_DIR="${date_dir}/${folders[$((choice-2))]}"
     elif [[ "$choice" == "$create_opt" ]]; then
         echo ""
         echo -e "  ${CYAN}New subfolder name (leave blank for auto-name):${NC}"
@@ -564,8 +567,6 @@ prompt_folder_choice() {
             mkdir -p "$CHOSEN_DIR"
             echo -e "  ${GREEN}✔${NC}  Created: $(basename "$CHOSEN_DIR")"
         fi
-    elif [[ "$choice" == "$nosub_opt" ]]; then
-        CHOSEN_DIR="$date_dir"
     else
         echo -e "  ${YELLOW}Invalid choice — saving to date folder.${NC}"
         CHOSEN_DIR="$date_dir"

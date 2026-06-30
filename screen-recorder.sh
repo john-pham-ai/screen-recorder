@@ -495,10 +495,21 @@ prompt_folder_choice() {
     # Inner width of the box — must match the 51 ═ chars in the border lines
     local W=51
 
-    # Truncate name to fit: prefix "  [N]  " = 7 chars, need 2 chars of right padding
+    # Option numbers for the two fixed entries
+    local create_opt=$(( ${#folders[@]} + 1 ))
+    local nosub_opt=$(( ${#folders[@]} + 2 ))
+
+    # Truncate name: "  [NN]  <name>  ║" — prefix up to 8 chars + 2 right margin
     _trunc() {
-        local s="$1" max=$(( W - 9 ))
+        local s="$1" max=$(( W - 10 ))
         (( ${#s} > max )) && echo "${s:0:$(( max - 1 ))}…" || echo "$s"
+    }
+
+    # Print one numbered row, handling 1- or 2-digit option numbers
+    _row() {
+        local num="$1" text="$2" color="$3"
+        local pad=$(( W - 6 - ${#num} - ${#text} ))
+        printf "  ${BOLD}║${NC}  ${color}[%s]${NC}  %s%*s${BOLD}║${NC}\n" "$num" "$text" "$pad" ""
     }
 
     local date_label
@@ -512,26 +523,23 @@ prompt_folder_choice() {
     printf "  ${BOLD}║${NC}%s%*s${BOLD}║${NC}\n" "$header_content" "$header_pad" ""
     echo -e "  ${BOLD}╠═══════════════════════════════════════════════════╣${NC}"
 
-    local i label row_pad
+    local i label
     for i in "${!folders[@]}"; do
         label=$(_trunc "${folders[$i]}")
-        row_pad=$(( W - 7 - ${#label} ))
-        printf "  ${BOLD}║${NC}  ${GREEN}[%s]${NC}  %s%*s${BOLD}║${NC}\n" \
-            "$((i+1))" "$label" "$row_pad" ""
+        _row "$((i+1))" "$label" "$GREEN"
     done
 
-    # "[+]  Create new subfolder" = 25 visible chars; prefix "  " = 2 → total = 27
-    printf "  ${BOLD}║${NC}  ${CYAN}[+]${NC}  Create new subfolder%*s${BOLD}║${NC}\n" $(( W - 27 )) ""
-    # "[0]  No subfolder (save to date folder)" = 39 visible; prefix "  " = 2 → total = 41
-    printf "  ${BOLD}║${NC}  ${DIM}[0]  No subfolder (save to date folder)%*s${NC}${BOLD}║${NC}\n" $(( W - 41 )) ""
+    _row "$create_opt" "Create new subfolder" "$CYAN"
+    _row "$nosub_opt"  "No subfolder (save to date folder)" "$DIM"
     echo -e "  ${BOLD}╚═══════════════════════════════════════════════════╝${NC}"
     echo ""
-    printf "  Choice [0]: "
+    printf "  Choice [1]: "
     read -r choice
-    choice="${choice:-0}"
+    choice="${choice:-1}"
 
-    if [[ "$choice" == "+" || "$choice" == "n" || "$choice" == "N" ]]; then
-        # Create new subfolder
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#folders[@]} )); then
+        CHOSEN_DIR="${date_dir}/${folders[$((choice-1))]}"
+    elif [[ "$choice" == "$create_opt" ]]; then
         echo ""
         echo -e "  ${CYAN}New subfolder name (leave blank for auto-name):${NC}"
         printf "  > "
@@ -543,11 +551,8 @@ prompt_folder_choice() {
         CHOSEN_DIR="${date_dir}/${folder_name}"
         mkdir -p "$CHOSEN_DIR"
         echo -e "  ${GREEN}✔${NC}  Created: ${CHOSEN_DIR}"
-    elif [[ "$choice" == "0" ]]; then
+    elif [[ "$choice" == "$nosub_opt" ]]; then
         CHOSEN_DIR="$date_dir"
-    elif [[ "$choice" =~ ^[0-9]+$ ]] \
-         && (( choice >= 1 && choice <= ${#folders[@]} )); then
-        CHOSEN_DIR="${date_dir}/${folders[$((choice-1))]}"
     else
         echo -e "  ${YELLOW}Invalid choice — saving to date folder.${NC}"
         CHOSEN_DIR="$date_dir"

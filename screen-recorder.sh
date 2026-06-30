@@ -32,6 +32,7 @@ RECORDING_COUNT=0
 RECORDING_START_EPOCH=0
 STATUS_MSG=""
 STATUS_COLOR="$NC"
+CHOSEN_DIR=""
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  OS Detection
@@ -482,6 +483,78 @@ start_recording() {
     draw_ui
 }
 
+prompt_folder_choice() {
+    local date_dir="$1"
+
+    # Collect existing subfolders
+    local -a folders=()
+    while IFS= read -r -d '' entry; do
+        folders+=("$(basename "$entry")")
+    done < <(find "$date_dir" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
+
+    echo ""
+    echo -e "  ${BOLD}╔═══════════════════════════════════════════════════╗${NC}"
+    echo -e "  ${BOLD}║          📁  Choose Save Location                ║${NC}"
+    echo -e "  ${BOLD}╠═══════════════════════════════════════════════════╣${NC}"
+    echo -e "  ${BOLD}║${NC}  ${GREEN}[1]${NC}  Today's folder  ${DIM}($(basename "$date_dir"))${NC}"
+    echo -e "  ${BOLD}║${NC}  ${GREEN}[2]${NC}  Create a new subfolder"
+    if [[ ${#folders[@]} -gt 0 ]]; then
+        echo -e "  ${BOLD}║${NC}  ${GREEN}[3]${NC}  Use an existing subfolder"
+    fi
+    echo -e "  ${BOLD}╚═══════════════════════════════════════════════════╝${NC}"
+    echo ""
+    printf "  Choice [1]: "
+    read -r choice
+    choice="${choice:-1}"
+
+    case "$choice" in
+        1)
+            CHOSEN_DIR="$date_dir"
+            ;;
+        2)
+            echo ""
+            echo -e "  ${CYAN}New subfolder name (leave blank for auto-name):${NC}"
+            printf "  > "
+            read -r folder_name
+            if [[ -z "$folder_name" ]]; then
+                folder_name="session_$((RANDOM % 90000 + 10000))"
+            fi
+            folder_name=$(echo "$folder_name" | sed 's/[^a-zA-Z0-9._-]/_/g')
+            CHOSEN_DIR="${date_dir}/${folder_name}"
+            mkdir -p "$CHOSEN_DIR"
+            echo -e "  ${GREEN}✔${NC}  Created: ${CHOSEN_DIR}"
+            ;;
+        3)
+            if [[ ${#folders[@]} -eq 0 ]]; then
+                echo -e "  ${YELLOW}No subfolders yet — saving to today's folder.${NC}"
+                CHOSEN_DIR="$date_dir"
+            else
+                echo ""
+                echo -e "  ${CYAN}Existing subfolders:${NC}"
+                local i
+                for i in "${!folders[@]}"; do
+                    echo -e "    ${GREEN}[$((i+1))]${NC}  ${folders[$i]}"
+                done
+                echo ""
+                printf "  Pick [1]: "
+                read -r folder_pick
+                folder_pick="${folder_pick:-1}"
+                if [[ "$folder_pick" =~ ^[0-9]+$ ]] \
+                   && (( folder_pick >= 1 && folder_pick <= ${#folders[@]} )); then
+                    CHOSEN_DIR="${date_dir}/${folders[$((folder_pick-1))]}"
+                else
+                    echo -e "  ${YELLOW}Invalid choice — saving to today's folder.${NC}"
+                    CHOSEN_DIR="$date_dir"
+                fi
+            fi
+            ;;
+        *)
+            echo -e "  ${YELLOW}Invalid choice — saving to today's folder.${NC}"
+            CHOSEN_DIR="$date_dir"
+            ;;
+    esac
+}
+
 prompt_and_rename() {
     local output_dir
     output_dir=$(get_output_dir)
@@ -490,6 +563,8 @@ prompt_and_rename() {
     timestamp=$(date +"%H%M%S")
 
     stty "$ORIGINAL_STTY" 2>/dev/null
+
+    prompt_folder_choice "$output_dir"
 
     echo ""
     echo -e "  ${CYAN}Enter test case name (leave blank for auto-name):${NC}"
@@ -503,7 +578,7 @@ prompt_and_rename() {
     fi
 
     test_case_name=$(echo "$test_case_name" | sed 's/[^a-zA-Z0-9._-]/_/g')
-    CURRENT_FILE="${output_dir}/${test_case_name}_run${RECORDING_COUNT}_${timestamp}.mp4"
+    CURRENT_FILE="${CHOSEN_DIR}/${test_case_name}_run${RECORDING_COUNT}_${timestamp}.mp4"
 
     [[ -f "$TEMP_FILE" ]] && mv "$TEMP_FILE" "$CURRENT_FILE"
 }

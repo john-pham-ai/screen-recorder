@@ -14,6 +14,15 @@ RESOLUTION="1920x1080"
 FRAME_RATE=30
 SCREEN_INDEX=""          # auto-set per OS if left blank
 
+# ── Default subfolders created in today's date folder on each launch ──
+DEFAULT_SUBFOLDERS=(
+    "Daily_Master_testing"
+    "Candidate_Smoke_Test"
+    "Dev_testing"
+    "Crows_Landing"
+    "Shoreline"
+)
+
 # ── Colors ──
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -408,7 +417,7 @@ draw_ui() {
     echo -e "  ${BOLD}║                                                   ║${NC}"
     echo -e "  ${BOLD}╠═══════════════════════════════════════════════════╣${NC}"
     echo -e "  ${BOLD}║${NC}  ${CYAN}Platform  :${NC} $(_capture_method)  ${DIM}[${OS_TYPE}]${NC}"
-    echo -e "  ${BOLD}║${NC}  ${CYAN}Save Path :${NC} ${BASE_DIR}/<YYYY-MM-DD>/"
+    echo -e "  ${BOLD}║${NC}  ${CYAN}Save Path :${NC} ${BASE_DIR}/$(date +"%Y-%m-%d")/"
     echo -e "  ${BOLD}║${NC}  ${CYAN}Resolution:${NC} ${RESOLUTION} @ ${FRAME_RATE}fps  ${CYAN}Screen:${NC} ${SCREEN_INDEX}"
     echo -e "  ${BOLD}║${NC}  ${CYAN}Saved     :${NC} ${RECORDING_COUNT} recording(s) this session"
     echo -e "  ${BOLD}╠═══════════════════════════════════════════════════╣${NC}"
@@ -639,6 +648,14 @@ cleanup() {
 
 parse_args "$@"
 check_and_install_deps
+
+# Create default subfolders in today's date folder (silently skips existing ones)
+_date_dir="${BASE_DIR}/$(date +"%Y-%m-%d")"
+mkdir -p "$_date_dir"
+for _sf in "${DEFAULT_SUBFOLDERS[@]}"; do
+    mkdir -p "${_date_dir}/${_sf}"
+done
+unset _date_dir _sf
 
 ORIGINAL_STTY=$(stty -g)
 trap cleanup SIGINT SIGTERM EXIT

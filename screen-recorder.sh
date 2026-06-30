@@ -9,7 +9,7 @@
 DEPS_FLAG="$HOME/.screen_recorder_deps_ok"
 
 # ── Default Configuration ──
-BASE_DIR="$HOME/testing_recording"
+BASE_DIR="$HOME/screen_recordings"
 RESOLUTION="1920x1080"
 FRAME_RATE=30
 SCREEN_INDEX=""          # auto-set per OS if left blank
@@ -597,6 +597,14 @@ prompt_and_rename() {
 
     test_case_name=$(echo "$test_case_name" | sed 's/[^a-zA-Z0-9._-]/_/g')
     CURRENT_FILE="${CHOSEN_DIR}/${test_case_name}_run${RECORDING_COUNT}_${timestamp}.mp4"
+
+    # Avoid overwriting an existing recording — append _2, _3, … until unique
+    if [[ -f "$CURRENT_FILE" ]]; then
+        local base="${CURRENT_FILE%.mp4}"
+        local n=2
+        while [[ -f "${base}_${n}.mp4" ]]; do (( n++ )); done
+        CURRENT_FILE="${base}_${n}.mp4"
+    fi
 
     [[ -f "$TEMP_FILE" ]] && mv "$TEMP_FILE" "$CURRENT_FILE"
 }

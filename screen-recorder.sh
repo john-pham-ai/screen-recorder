@@ -492,20 +492,38 @@ prompt_folder_choice() {
         folders+=("$(basename "$entry")")
     done < <(find "$date_dir" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
 
-    local new_opt=$(( ${#folders[@]} + 1 ))
+    # Inner width of the box — must match the 51 ═ chars in the border lines
+    local W=51
+
+    # Truncate name to fit: prefix "  [N]  " = 7 chars, need 2 chars of right padding
+    _trunc() {
+        local s="$1" max=$(( W - 9 ))
+        (( ${#s} > max )) && echo "${s:0:$(( max - 1 ))}…" || echo "$s"
+    }
+
+    local date_label
+    date_label=$(basename "$date_dir")
+    # 📁 is 1 bash-char but 2 terminal columns, so visual_width = ${#content} + 1
+    local header_content="   📁  Subfolder  (${date_label})"
+    local header_pad=$(( W - ${#header_content} - 1 ))
 
     echo ""
     echo -e "  ${BOLD}╔═══════════════════════════════════════════════════╗${NC}"
-    echo -e "  ${BOLD}║   📁  Subfolder  ${DIM}($(basename "$date_dir"))${NC}"
+    printf "  ${BOLD}║${NC}%s%*s${BOLD}║${NC}\n" "$header_content" "$header_pad" ""
     echo -e "  ${BOLD}╠═══════════════════════════════════════════════════╣${NC}"
 
-    local i
+    local i label row_pad
     for i in "${!folders[@]}"; do
-        echo -e "  ${BOLD}║${NC}  ${GREEN}[$((i+1))]${NC}  ${folders[$i]}"
+        label=$(_trunc "${folders[$i]}")
+        row_pad=$(( W - 7 - ${#label} ))
+        printf "  ${BOLD}║${NC}  ${GREEN}[%s]${NC}  %s%*s${BOLD}║${NC}\n" \
+            "$((i+1))" "$label" "$row_pad" ""
     done
 
-    echo -e "  ${BOLD}║${NC}  ${CYAN}[+]${NC}  Create new subfolder"
-    echo -e "  ${BOLD}║${NC}  ${DIM}[0]  No subfolder (save to date folder)${NC}"
+    # "[+]  Create new subfolder" = 25 visible chars; prefix "  " = 2 → total = 27
+    printf "  ${BOLD}║${NC}  ${CYAN}[+]${NC}  Create new subfolder%*s${BOLD}║${NC}\n" $(( W - 27 )) ""
+    # "[0]  No subfolder (save to date folder)" = 39 visible; prefix "  " = 2 → total = 41
+    printf "  ${BOLD}║${NC}  ${DIM}[0]  No subfolder (save to date folder)%*s${NC}${BOLD}║${NC}\n" $(( W - 41 )) ""
     echo -e "  ${BOLD}╚═══════════════════════════════════════════════════╝${NC}"
     echo ""
     printf "  Choice [0]: "

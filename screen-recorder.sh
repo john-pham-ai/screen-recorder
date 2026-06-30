@@ -42,6 +42,7 @@ RECORDING_START_EPOCH=0
 STATUS_MSG=""
 STATUS_COLOR="$NC"
 CHOSEN_DIR=""
+SAVE_CANCELLED=false
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  OS Detection
@@ -510,6 +511,7 @@ prompt_folder_choice() {
     echo -e "  ${BOLD}╠═══════════════════════════════════════════════════╣${NC}"
     printf "  ${BOLD}║${NC}  ${DIM}[1]  No subfolder (save to date folder)%*s${NC}${BOLD}║${NC}\n" $(( W - 41 )) ""
     printf "  ${BOLD}║${NC}  ${CYAN}[2]${NC}  Create new subfolder%*s${BOLD}║${NC}\n"               $(( W - 27 )) ""
+    printf "  ${BOLD}║${NC}  ${RED}[0]${NC}  Discard recording%*s${BOLD}║${NC}\n"                  $(( W - 24 )) ""
     echo -e "  ${BOLD}╚═══════════════════════════════════════════════════╝${NC}"
     echo ""
     printf "  Choice [1]: "
@@ -537,6 +539,9 @@ prompt_folder_choice() {
                 echo -e "  ${GREEN}✔${NC}  Created: $(basename "$CHOSEN_DIR")"
             fi
             ;;
+        0)
+            SAVE_CANCELLED=true
+            ;;
         *)
             echo -e "  ${YELLOW}Invalid choice — saving to date folder.${NC}"
             CHOSEN_DIR="$date_dir"
@@ -553,12 +558,29 @@ prompt_and_rename() {
 
     stty "$ORIGINAL_STTY" 2>/dev/null
 
-    prompt_folder_choice "$output_dir"
+    while true; do
+        SAVE_CANCELLED=false
+        prompt_folder_choice "$output_dir"
 
-    echo ""
-    echo -e "  ${CYAN}Enter test case name (leave blank for auto-name):${NC}"
-    printf "  > "
-    read -r test_case_name
+        # [0] chosen — discard temp file and bail out
+        if $SAVE_CANCELLED; then
+            rm -f "$TEMP_FILE"
+            TEMP_FILE=""
+            RECORDING_COUNT=$(( RECORDING_COUNT - 1 ))
+            stty -echo -icanon min 1 time 0 2>/dev/null
+            return
+        fi
+
+        echo ""
+        echo -e "  ${CYAN}Enter test case name (b = back, blank = auto-name):${NC}"
+        printf "  > "
+        read -r test_case_name
+
+        # b/B → go back to the folder picker
+        [[ "$test_case_name" == "b" || "$test_case_name" == "B" ]] && continue
+
+        break
+    done
 
     stty -echo -icanon min 1 time 0 2>/dev/null
 
@@ -594,9 +616,14 @@ stop_recording() {
 
     prompt_and_rename
 
-    local size=""
-    [[ -f "$CURRENT_FILE" ]] && size="  ($(du -h "$CURRENT_FILE" | cut -f1))"
-    set_status "$GREEN" "✔  Saved: $(basename "$CURRENT_FILE")${size}"
+    if $SAVE_CANCELLED; then
+        SAVE_CANCELLED=false
+        set_status "$YELLOW" "⚠  Recording discarded."
+    else
+        local size=""
+        [[ -f "$CURRENT_FILE" ]] && size="  ($(du -h "$CURRENT_FILE" | cut -f1))"
+        set_status "$GREEN" "✔  Saved: $(basename "$CURRENT_FILE")${size}"
+    fi
     draw_ui
 }
 

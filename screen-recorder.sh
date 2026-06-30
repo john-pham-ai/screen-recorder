@@ -549,8 +549,12 @@ prompt_folder_choice() {
         fi
         folder_name=$(echo "$folder_name" | sed 's/[^a-zA-Z0-9._-]/_/g')
         CHOSEN_DIR="${date_dir}/${folder_name}"
-        mkdir -p "$CHOSEN_DIR"
-        echo -e "  ${GREEN}✔${NC}  Created: ${CHOSEN_DIR}"
+        if [[ -d "$CHOSEN_DIR" ]]; then
+            echo -e "  ${CYAN}↩${NC}  Folder already exists — reusing: $(basename "$CHOSEN_DIR")"
+        else
+            mkdir -p "$CHOSEN_DIR"
+            echo -e "  ${GREEN}✔${NC}  Created: $(basename "$CHOSEN_DIR")"
+        fi
     elif [[ "$choice" == "$nosub_opt" ]]; then
         CHOSEN_DIR="$date_dir"
     else
